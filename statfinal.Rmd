@@ -1,0 +1,157 @@
+---
+title: "final project for Stat 408"
+date: "2022-12-04"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(mixgb)
+
+temp <- tempfile()
+download.file("https://archive.ics.uci.edu/ml/machine-learning-databases/00544/ObesityDataSet_raw_and_data_sinthetic%20(2).zip",temp)
+obese <- read_csv(unz(temp, "ObesityDataSet_raw_and_data_sinthetic.csv"))
+unlink(temp)
+
+glimpse(obese)
+
+table(obese$NObeyesdad)
+```
+
+
+```{r}
+#Cleaning the dataset
+
+obese_clean <- obese %>% 
+  mutate(NObeyesdad = case_when(
+    grepl("Overweight_Level", NObeyesdad) ~ "Overweight",
+    grepl("Obesity_Type",NObeyesdad) ~ "Obese",
+    grepl("Insufficient", NObeyesdad) ~ "Underweight",
+    TRUE ~ "Normal"
+  ))
+obese_clean<- data_clean(obese_clean)
+```
+
+
+```{r}
+#Building Ordinal logistic Regression Model with all predictors
+library(MASS)
+
+
+
+ordlmod <- polr(NObeyesdad ~ Gender + Age + Height  + Weight + family_history_with_overweight + FAVC + FCVC + NCP + CAEC + SMOKE + CH2O + SCC + FAF + TUE + CALC + MTRANS, data = obese_clean, Hess=TRUE)
+
+ordlmod
+```
+
+
+```{r}
+## EDA and Data Viz
+ggplot(obese_clean, aes(x = NObeyesdad, y = Age, fill = NObeyesdad)) +   geom_boxplot(size = .75) +   facet_grid(MTRANS ~ Gender, margins = FALSE) +   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+```
+
+
+```{r}
+#Creating training and test set
+
+samplesize = 0.7*nrow(obese_clean)
+set.seed(1010)
+index = sample(seq_len(nrow(obese_clean)), size = samplesize)
+datatrain = obese_clean[index,]
+datatest = obese_clean[-index,]
+
+ordlmod_test <- polr(NObeyesdad ~ Gender + Age + Height  + Weight + family_history_with_overweight + FAVC + FCVC + NCP + CAEC + SMOKE + CH2O + SCC + FAF + TUE + CALC + MTRANS, data = datatrain, Hess=TRUE)
+
+
+
+predictobesity = predict(ordlmod_test,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+```
+
+```{r}
+#Model Selection using Step AIC
+
+library(foreign)
+library(Hmisc)
+
+ordlmod_step <- stepAIC(ordlmod_test, ~.)
+ordlmod_step
+
+#New Accuracy
+predictobesity = predict(ordlmod_step,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+
+#0.3% increase
+```
+
+```{r}
+#Neural Net Multinomial Logistic Regression
+
+install.packages('caret')
+library(caret)
+detach("package:MASS", unload=TRUE)
+ctrl <- trainControl(method = "cv", number = 5)
+test <- obese_clean %>% select(!Height)
+model <- train(NObeyesdad ~ ., data = test, method = "multinom", trControl = ctrl)
+summary(model)
+
+```
+
+
+```{r}
+
+samplesize = 0.7*nrow(obese_clean)
+set.seed(1010)
+index = sample(seq_len(nrow(obese_clean)), size = samplesize)
+#Creating training and test set
+datatrain = obese_clean[index,]
+datatest = obese_clean[-index,]
+
+
+samplesize = 0.7*nrow(test)
+set.seed(1010)
+index = sample(seq_len(nrow(test)), size = samplesize)
+#Creating training and test set
+datatrain = test[index,]
+datatest = test[-index,]
+
+
+summary(model)
+
+model <- nnet::multinom(NObeyesdad ~ ., data=test, method = "multinom", maxit=100)
+
+predictobesity = predict(model,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+
+```
+
+```{r}
+#WIP
+#Ordinal Net Packages + Stuff
+
+library("ordinalNet")
+library("ordinalgmifs")
+data("hccframe")
+
+y <- hccframe$group
+x <- as.matrix(subset(hccframe, select = -group))
+
+
+y <- as.factor(obese_clean$NObeyesdad)
+o_x
+x<- as.matrix(o_x2)
+
+fit1 <- ordinalNet(x, y, family = "cumulative", link = "logit", parallelTerms = TRUE, nonparallelTerms = FALSE)
+head(coef(fit1, matrix = TRUE))
+as.numeric(o_x)
+trainControl
+
+summary
+o_x2 <- o_x %>% mutate(across(Gender:MTRANS, as.numeric))
+```
+
+
+
