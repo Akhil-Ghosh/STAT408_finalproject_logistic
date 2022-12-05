@@ -69,6 +69,8 @@ table(datatest$NObeyesdad, predictobesity)
 mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
 ```
 
+
+
 ```{r}
 #Model Selection using Step AIC
 
@@ -78,13 +80,60 @@ library(Hmisc)
 ordlmod_step <- stepAIC(ordlmod_test, ~.)
 ordlmod_step
 
+
+
 #New Accuracy
-predictobesity = predict(ordlmod_step,datatest)
+predictobesity = predict(ordlmod_step2,datatest)
 table(datatest$NObeyesdad, predictobesity)
 mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
 
 #0.3% increase
 ```
+```{r}
+#model selection with P-values
+
+coefficients <- summary(ordlmod_step)$coefficients
+p_value <- (1 - pnorm(abs(coefficients[ ,"t value"]), 0, 1))*2
+(coefficients <- cbind(coefficients, p_value))
+odds_ratio <- exp(coefficients[ ,"Value"])
+
+
+(coefficients <- cbind(
+  coefficients[ ,c("Value", "p_value")],
+  odds_ratio
+))
+ 
+```
+
+
+```{r}
+new_mod <- update(ordlmod_step, . ~ . - Age)
+new_mod <- update(new_mod, . ~ . - family_history_with_overweight)
+
+ordlmod_step2 <- stepAIC(new_mod, ~.)
+ordlmod_step2
+
+
+predictobesity = predict(ordlmod_step2,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+
+```
+
+```{r}
+coefficients <- summary(ordlmod_step2)$coefficients
+p_value <- (1 - pnorm(abs(coefficients[ ,"t value"]), 0, 1))*2
+(coefficients <- cbind(coefficients, p_value))
+odds_ratio <- exp(coefficients[ ,"Value"])
+
+(coefficients <- cbind(
+  coefficients[ ,c("Value", "p_value")],
+  odds_ratio
+))
+```
+
+
+
 
 ```{r}
 #Neural Net Multinomial Logistic Regression
@@ -120,7 +169,7 @@ datatest = test[-index,]
 
 summary(model)
 
-model <- nnet::multinom(NObeyesdad ~ ., data=test, method = "multinom", maxit=100)
+model <- nnet::multinom(NObeyesdad ~ ., data=datatrain, method = "multinom", maxit=100)
 
 predictobesity = predict(model,datatest)
 table(datatest$NObeyesdad, predictobesity)
@@ -134,23 +183,20 @@ mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
 
 library("ordinalNet")
 library("ordinalgmifs")
-data("hccframe")
 
-y <- hccframe$group
-x <- as.matrix(subset(hccframe, select = -group))
+o_x2 <- obese_clean %>% mutate(across(Gender:MTRANS, as.numeric)) %>% select(!NObeyesdad)
 
 
 y <- as.factor(obese_clean$NObeyesdad)
-o_x
 x<- as.matrix(o_x2)
 
 fit1 <- ordinalNet(x, y, family = "cumulative", link = "logit", parallelTerms = TRUE, nonparallelTerms = FALSE)
 head(coef(fit1, matrix = TRUE))
-as.numeric(o_x)
-trainControl
 
-summary
-o_x2 <- o_x %>% mutate(across(Gender:MTRANS, as.numeric))
+summary(fit1)
+
+
+
 ```
 
 
