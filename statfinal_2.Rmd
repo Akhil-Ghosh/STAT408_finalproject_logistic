@@ -1,6 +1,5 @@
 ---
 title: "final project for Stat 408"
-date: "2022-12-04"
 output: html_document
 ---
 
