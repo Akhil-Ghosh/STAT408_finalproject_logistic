@@ -1,0 +1,206 @@
+---
+title: "final project for Stat 408"
+date: "2022-12-04"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(mixgb)
+library(readr)
+library(foreign)
+library(Hmisc)
+temp <- tempfile()
+download.file("https://archive.ics.uci.edu/ml/machine-learning-databases/00544/ObesityDataSet_raw_and_data_sinthetic%20(2).zip",temp)
+obese <- read_csv(unz(temp, "ObesityDataSet_raw_and_data_sinthetic.csv"))
+unlink(temp)
+```
+
+
+```{r}
+#Cleaning the dataset
+
+obese_clean <- obese %>% 
+  mutate(NObeyesdad = case_when(
+    grepl("Overweight_Level", NObeyesdad) ~ "Overweight",
+    grepl("Obesity_Type",NObeyesdad) ~ "Obese",
+    grepl("Insufficient", NObeyesdad) ~ "Underweight",
+    TRUE ~ "Normal"
+  ))
+obese_clean<- data_clean(obese_clean)
+```
+
+
+```{r}
+#Building Ordinal logistic Regression Model with all predictors
+library(MASS)
+
+ordlmod <- polr(NObeyesdad ~ Gender + Age  + family_history_with_overweight + FAVC + FCVC + NCP + CAEC + SMOKE + CH2O + SCC + FAF + TUE + CALC + MTRANS, data = obese_clean, Hess=TRUE)
+
+ordlmod
+```
+
+
+```{r}
+## EDA and Data Viz
+ggplot(obese_clean, aes(x = NObeyesdad, y = Age, fill = NObeyesdad)) +   geom_boxplot(size = .75) +   facet_grid(MTRANS ~ Gender, margins = FALSE) +   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+```
+
+
+```{r}
+#Creating training and test set
+set.seed(1010)
+
+samplesize = 0.7*nrow(obese_clean)
+index = sample(seq_len(nrow(obese_clean)), size = samplesize)
+datatrain = obese_clean[index,]
+datatest = obese_clean[-index,]
+
+ordlmod_test <- polr(NObeyesdad ~ Gender + Age + family_history_with_overweight + FAVC + FCVC + NCP + CAEC + SMOKE + CH2O + SCC + FAF + TUE + CALC + MTRANS, data = datatrain, Hess=TRUE)
+
+
+
+predictobesity = predict(ordlmod_test,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+```
+
+```{r}
+#Model Selection using Step AIC
+
+
+ordlmod_step <- stepAIC(ordlmod_test, ~.)
+ordlmod_step
+
+#New Accuracy
+predictobesity = predict(ordlmod_step,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+
+#0.3% increase
+```
+```{r}
+#model selection with P-values
+coefficients <- summary(ordlmod_step)$coefficients
+p_value <- (1 - pnorm(abs(coefficients[ ,"t value"]), 0, 1))*2
+(coefficients <- cbind(coefficients, p_value))
+odds_ratio <- exp(coefficients[ ,"Value"])
+(coefficients <- cbind(
+  coefficients[ ,c("Value", "p_value")],
+  odds_ratio
+))
+```
+
+```{r}
+ordlmod_final <- update(ordlmod_step,. ~ . - (SMOKE+FAF + SCC))
+
+summary(ordlmod_final)
+
+predictobesity = predict(ordlmod_final,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+
+```
+
+
+```{r}
+#Neural Net Multinomial Logistic Regression
+detach("package:MASS", unload=TRUE)
+ctrl <- trainControl(method = "cv", number = 5)
+model <- train(NObeyesdad ~ .-(Height + Weight), data = datatrain, method = "multinom", trControl = ctrl)
+summary(model)
+
+```
+
+
+```{r}
+#Creating training and test set
+samplesize = 0.7*nrow(obese_clean)
+set.seed(1010)
+index = sample(seq_len(nrow(obese_clean)), size = samplesize)
+datatrain = obese_clean[index,]
+datatest = obese_clean[-index,]
+
+summary(model)
+
+model <- nnet::multinom(NObeyesdad ~ .-(Height + Weight), data=datatrain, method = "multinom", maxit=100)
+
+predictobesity = predict(model,datatest)
+table(datatest$NObeyesdad, predictobesity)
+mean(as.character(datatest$NObeyesdad) != as.character(predictobesity))
+
+```
+```{r}
+#Refitting the Ordinal Logisic Model with New Levels
+
+obese_clean_three <- obese %>% 
+  mutate(NObeyesdad = case_when(
+    grepl("Overweight_Level", NObeyesdad) ~ "Overweight",
+    grepl("Obesity_Type",NObeyesdad) ~ "Obese",
+    TRUE ~ "Normal"
+  ))
+
+obese_clean_three$NObeyesdad <- factor(obese_clean_three$NObeyesdad, levels = c("Normal", "Overweight", "Obese"))
+obese_clean_three<- data_clean(obese_clean_three)
+
+#Building Ordinal logistic Regression Model, three levels
+
+library(MASS)
+
+
+set.seed(1010)
+
+samplesize = 0.7*nrow(obese_clean_three)
+index = sample(seq_len(nrow(obese_clean_three)), size = samplesize)
+datatrain_three = obese_clean_three[index,]
+datatest_three = obese_clean_three[-index,]
+
+ordlmod_test <- polr(NObeyesdad ~ Gender + Age + family_history_with_overweight + FAVC + FCVC + NCP + CAEC + SMOKE + CH2O + SCC + FAF + TUE + CALC + MTRANS, data = datatrain_three, Hess=TRUE)
+
+
+
+predictobesity = predict(ordlmod_test,datatest_three)
+table(datatest_three$NObeyesdad, predictobesity)
+mean(as.character(datatest_three$NObeyesdad) != as.character(predictobesity))
+
+
+
+ordlmod_step <- stepAIC(ordlmod_test, ~.)
+ordlmod_step
+
+coefficients <- summary(ordlmod_step)$coefficients
+p_value <- (1 - pnorm(abs(coefficients[ ,"t value"]), 0, 1))*2
+(coefficients <- cbind(coefficients, p_value))
+odds_ratio <- exp(coefficients[ ,"Value"])
+(coefficients <- cbind(
+  coefficients[ ,c("Value", "p_value")],
+  odds_ratio
+))
+
+ordlmod_final <- update(ordlmod_step,. ~ . - (GENDER+TUE + NCP))
+
+summary(ordlmod_final)
+
+
+#New Accuracy
+predictobesity = predict(ordlmod_final,datatest_three)
+table(datatest_three$NObeyesdad, predictobesity)
+mean(as.character(datatest_three$NObeyesdad) != as.character(predictobesity))
+
+
+
+detach("package:MASS", unload=TRUE)
+ctrl <- trainControl(method = "cv", number = 5)
+model <- train(NObeyesdad ~ .-(Height + Weight), data = datatrain_three, method = "multinom", trControl = ctrl)
+
+
+predictobesity = predict(model,datatest_three)
+table(datatest_three$NObeyesdad, predictobesity)
+mean(as.character(datatest_three$NObeyesdad) != as.character(predictobesity))
+
+```
+
+
+
+
+
