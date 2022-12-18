@@ -54,7 +54,7 @@ ggplot(obese_clean, aes(x = NObeyesdad, y = Age, fill = NObeyesdad)) +   geom_bo
 ```{r}
 #Creating training and test set
 
-samplesize = 0.7*nrow(obese_clean)
+samplesize = 0.2*nrow(obese_clean)
 set.seed(1010)
 index = sample(seq_len(nrow(obese_clean)), size = samplesize)
 datatrain = obese_clean[index,]
@@ -198,6 +198,27 @@ summary(fit1)
 
 
 ```
+
+```{r}
+
+
+samplesize = nrow(obese_clean)
+folds <- sample(1:5, nrow(obese_clean), replace=TRUE)
+for(i in 1:5){
+  if(i==folds){
+    
+    
+  }
+}
+set.seed(1010)
+index = sample(seq_len(nrow(obese_clean)), size = samplesize)
+datatrain = obese_clean[index,]
+datatest = obese_clean[-index,]
+
+ordlmod_test <- polr(NObeyesdad ~ Gender + Age + Height  + Weight + family_history_with_overweight + FAVC + FCVC + NCP + CAEC + SMOKE + CH2O + SCC + FAF + TUE + CALC + MTRANS, data = datatrain, Hess=TRUE)
+
+```
+
 
 
 
