@@ -201,6 +201,30 @@ mean(as.character(datatest_three$NObeyesdad) != as.character(predictobesity))
 ```
 
 
+```{r}
+set.seed(1010)
+mse <- c()
+samplesize = nrow(obese_clean)
+folds <- sample(1:5, nrow(obese_clean), replace=TRUE)
+for(k in 1:5){
+  
+  datatrain <- obese_clean[folds==k,]
+  datatest <- obese_clean[folds!=k,]
+  
+  model <- nnet::multinom(NObeyesdad ~ .-(Height + Weight), data=datatrain, method = "multinom", maxit=100)
+  
+  predictobesity = predict(model,datatest)
+  table(datatest$NObeyesdad, predictobesity)
+  mse <- c(mse,mean(as.character(datatest$NObeyesdad) != as.character(predictobesity)))
+
+
+}
+mse
+mean(mse)
+
+
+```
+
 
 
 
